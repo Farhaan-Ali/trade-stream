@@ -1,9 +1,11 @@
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { SupplierDetailDialog } from './SupplierDetailDialog';
 import { 
   Users, 
   Building2, 
@@ -27,6 +29,9 @@ interface PendingSupplier {
     business_name: string;
     fssai_license: string;
     business_type: string;
+    business_address: string;
+    contact_number: string;
+    other_certifications: string[];
   };
 }
 
@@ -96,11 +101,20 @@ export function SuperadminDashboard() {
         return;
       }
 
-      // Then get profiles for these users
+      // Then get profiles for these users with all the detailed information
       const userIds = userRoles.map(ur => ur.user_id);
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('user_id, full_name, business_name, fssai_license, business_type')
+        .select(`
+          user_id, 
+          full_name, 
+          business_name, 
+          fssai_license, 
+          business_type,
+          business_address,
+          contact_number,
+          other_certifications
+        `)
         .in('user_id', userIds);
 
       // Combine the data
@@ -112,7 +126,10 @@ export function SuperadminDashboard() {
             full_name: '',
             business_name: '',
             fssai_license: '',
-            business_type: ''
+            business_type: '',
+            business_address: '',
+            contact_number: '',
+            other_certifications: []
           }
         };
       });
@@ -267,39 +284,42 @@ export function SuperadminDashboard() {
               </Badge>
             </CardTitle>
             <CardDescription>
-              Review and approve supplier applications
+              Review detailed supplier information and approve legitimate businesses
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {pendingSuppliers.map((supplier) => (
-                <div key={supplier.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-1">
-                    <p className="font-medium">{supplier.profiles?.full_name}</p>
-                    <p className="text-sm text-muted-foreground">{supplier.profiles?.business_name}</p>
-                    <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                      <span>FSSAI: {supplier.profiles?.fssai_license}</span>
-                      <span>Type: {supplier.profiles?.business_type}</span>
+                <div key={supplier.id} className="flex items-center justify-between p-4 border rounded-lg bg-card/50">
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center space-x-3">
+                      <p className="font-medium">{supplier.profiles?.full_name}</p>
+                      <Badge variant="secondary">{supplier.profiles?.business_type}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground font-medium">
+                      {supplier.profiles?.business_name}
+                    </p>
+                    <div className="flex items-center space-x-6 text-xs text-muted-foreground">
+                      <span className="flex items-center space-x-1">
+                        <span>FSSAI:</span> 
+                        <span className={supplier.profiles?.fssai_license ? "text-success font-medium" : "text-muted-foreground"}>
+                          {supplier.profiles?.fssai_license || 'Not provided'}
+                        </span>
+                      </span>
+                      <span className="flex items-center space-x-1">
+                        <span>Certifications:</span>
+                        <span className="font-medium">
+                          {supplier.profiles?.other_certifications?.length || 0}
+                        </span>
+                      </span>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleRejectSupplier(supplier.user_id)}
-                      className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                    >
-                      <XCircle className="w-4 h-4 mr-1" />
-                      Reject
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => handleApproveSupplier(supplier.user_id)}
-                      className="bg-success hover:bg-success/90 text-success-foreground"
-                    >
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Approve
-                    </Button>
+                    <SupplierDetailDialog 
+                      supplier={supplier}
+                      onApprove={handleApproveSupplier}
+                      onReject={handleRejectSupplier}
+                    />
                   </div>
                 </div>
               ))}
